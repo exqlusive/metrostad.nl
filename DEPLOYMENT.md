@@ -10,8 +10,8 @@ This repo uses the shared VPS deployment contract.
 
 ## Trigger behavior
 
-- Push to `acceptance`: builds tag `:acceptance` and deploys to acceptance.
-- Push to `main`: builds tag `:main` and deploys to production.
+- Merged PR into `acceptance`: builds tag `:acceptance` and deploys to acceptance.
+- Merged PR into `main`: builds tag `:main` and deploys to production.
 - Manual run (`workflow_dispatch`): run it from the branch you want to deploy.
 
 ## Required GitHub secrets
