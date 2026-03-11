@@ -1,11 +1,10 @@
-FROM php:8.3-fpm-alpine
+FROM dunglas/frankenphp:php8.3-alpine
 
-RUN apk add --no-cache git unzip libzip-dev oniguruma-dev icu-dev bash \
-  && docker-php-ext-install pdo pdo_mysql bcmath intl
+WORKDIR /app
+
+RUN install-php-extensions pdo_mysql bcmath intl opcache pcntl
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-WORKDIR /var/www/html
 
 COPY . .
 
@@ -13,12 +12,17 @@ RUN if [ -f composer.json ]; then \
       composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader; \
     fi
 
+RUN mkdir -p bootstrap/cache storage/framework/cache storage/framework/sessions storage/framework/views storage/logs \
+  && chown -R www-data:www-data storage bootstrap/cache || true
+
 RUN if [ -f artisan ]; then \
       php artisan config:cache || true; \
       php artisan route:cache || true; \
       php artisan view:cache || true; \
     fi
 
-EXPOSE 9000
+COPY Caddyfile /etc/caddy/Caddyfile
 
-CMD ["php-fpm", "-F"]
+EXPOSE 80
+
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]

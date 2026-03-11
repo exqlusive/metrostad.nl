@@ -48,6 +48,10 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/apps/env/metrostad-nl.env
+    # Optional: expose directly (skip if using a reverse proxy network)
+    # ports:
+    #   - "8080:80"
 ```
 
-Add Nginx/Traefik, Redis, worker/scheduler services separately in the same stack.
+This image now runs Laravel via FrankenPHP (Caddy + PHP in one container).
+Add Redis, worker/scheduler services separately in the same stack.
