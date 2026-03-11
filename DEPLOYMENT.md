@@ -10,8 +10,9 @@ This repo uses the shared VPS deployment contract.
 
 ## Trigger behavior
 
-- Push to `main`: deploys to production.
-- Manual run (`workflow_dispatch`): choose `production`, `acceptance`, or `both`.
+- Merged PR into `acceptance`: builds tag `:acceptance` and deploys to acceptance.
+- Merged PR into `main`: builds tag `:main` and deploys to production.
+- Manual run (`workflow_dispatch`): run it from the branch you want to deploy.
 
 ## Required GitHub secrets
 
@@ -55,3 +56,5 @@ services:
 
 This image now runs Laravel via FrankenPHP (Caddy + PHP in one container).
 Add Redis, worker/scheduler services separately in the same stack.
+
+Use `ghcr.io/exqlusive/metrostad.nl:acceptance` in the acceptance compose file.
