@@ -1,0 +1,109 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        type: choice
+        options:
+          - production
+          - acceptance
+          - both
+        default: production
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: deploy-${{ github.repository }}-main
+  cancel-in-progress: true
+
+env:
+  IMAGE_MAIN: ghcr.io/${{ github.repository }}:main
+  IMAGE_SHA: ghcr.io/${{ github.repository }}:${{ github.sha }}
+  SERVICE_NAME: ${{ vars.DEPLOY_SERVICE_NAME || 'metrostad-nl' }}
+  DEPLOY_SCRIPT: ${{ vars.DEPLOY_SCRIPT || '/opt/apps/bin/deploy-compose-service.sh' }}
+  COMPOSE_FILE: ${{ vars.DEPLOY_COMPOSE_FILE || '/opt/apps/compose/production.yml' }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_MAIN }}
+            ${{ env.IMAGE_SHA }}
+
+  deploy-acceptance:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ github.event_name == 'workflow_dispatch' && (inputs.target == 'acceptance' || inputs.target == 'both') }}
+
+    steps:
+      - name: Deploy to acceptance
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_SCRIPT: ${{ env.DEPLOY_SCRIPT }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+          COMPOSE_FILE: ${{ vars.ACC_DEPLOY_COMPOSE_FILE || vars.DEPLOY_COMPOSE_FILE || '/opt/apps/compose/production.yml' }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        with:
+          host: ${{ secrets.ACC_HOST }}
+          username: ${{ secrets.ACC_USER }}
+          key: ${{ secrets.ACC_SSH_KEY }}
+          port: ${{ secrets.ACC_PORT }}
+          script_stop: true
+          envs: DEPLOY_SCRIPT,SERVICE_NAME,COMPOSE_FILE,GHCR_USERNAME,GHCR_PAT
+          script: |
+            set -euo pipefail
+            "$DEPLOY_SCRIPT" "$SERVICE_NAME" "$COMPOSE_FILE"
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.target == 'production' || inputs.target == 'both')) }}
+
+    steps:
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_SCRIPT: ${{ env.DEPLOY_SCRIPT }}
+          SERVICE_NAME: ${{ env.SERVICE_NAME }}
+          COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT }}
+          script_stop: true
+          envs: DEPLOY_SCRIPT,SERVICE_NAME,COMPOSE_FILE,GHCR_USERNAME,GHCR_PAT
+          script: |
+            set -euo pipefail
+            "$DEPLOY_SCRIPT" "$SERVICE_NAME" "$COMPOSE_FILE"
